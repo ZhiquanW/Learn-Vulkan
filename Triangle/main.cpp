@@ -16,7 +16,30 @@ const bool enableValidationLayers = false;
 #else
 const bool enableValidationLayers = true;
 #endif
-
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    bool isComplete() { return graphicsFamily.has_value(); }
+};
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
+                                             nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
+                                             queueFamilies.data());
+    int i = 0;
+    for (const auto &queueFamily : queueFamilies) {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            indices.graphicsFamily = i;
+            if (indices.isComplete()) {
+                break;
+            }
+        }
+        i++;
+    }
+    return indices;
+}
 VkResult CreateDebugUtilsMessengerEXT(
     VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *pAllocator,
@@ -29,6 +52,7 @@ VkResult CreateDebugUtilsMessengerEXT(
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 }
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -229,7 +253,21 @@ private:
         }
     }
 
-    bool isDeviceSutiable(VkPhysicalDevice deivce) { return true; }
+    bool isDeviceSutiable(VkPhysicalDevice device) {
+        // // query properties
+        // VkPhysicalDeviceProperties deviceProperties;
+        // vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        // // query optional features
+        // VkPhysicalDeviceFeatures deviceFeatures;
+        // vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        // return deviceProperties.deviceType ==
+        //            VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+        //        deviceFeatures.geometryShader;
+        QueueFamilyIndices indices = findQueueFamilies(device);
+        return indices.isComplete();
+        // return true;
+    }
 };
 
 int main() {
