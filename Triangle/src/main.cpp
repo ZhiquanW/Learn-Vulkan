@@ -5,8 +5,9 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
-#include <stdexcept>
 
+#include <stdexcept>
+#include <vector>
 const int WIDTH = 800;
 const int HEIGHT = 600;
 const std::vector<const char *> validationLayers = {
