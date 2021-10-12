@@ -2,5 +2,6 @@
     "files.associations": {
         "stdexcept": "cpp",
         "ostream": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/triangle"
 }
