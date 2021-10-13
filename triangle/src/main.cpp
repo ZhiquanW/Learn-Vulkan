@@ -16,14 +16,17 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <vector>
-
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+};
 class HelloTrigneleApplication {
    public:
     void run() {
         this->initWindow();
         this->initVulkan();
-        // this->mainLoop();
+        this->mainLoop();
         this->cleanup();
     }
 
@@ -43,6 +46,7 @@ class HelloTrigneleApplication {
     // Creating a VkInstance object initializes the Vulkan library and
     // allows the application to pass information about itself to the implementation.
     VkInstance instance;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     void initWindow() {
         // initializes the GLFW library
         glfwInit();
@@ -57,7 +61,8 @@ class HelloTrigneleApplication {
         this->window = glfwCreateWindow(win_height, win_width, "vulkan_main", nullptr, nullptr);
     }
     void initVulkan() {
-        createInstance();
+        this->createInstance();
+        this->pickPhysicalDevice();
     }
 
     void mainLoop() {
@@ -118,8 +123,6 @@ class HelloTrigneleApplication {
         if (this->enableValidationLayers) {
             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
             createInfo.ppEnabledLayerNames = this->validationLayers.data();
-            std::cerr << this->validationLayers[0] << std::endl;
-
         } else {
             createInfo.enabledLayerCount = 0;
         }
@@ -132,11 +135,10 @@ class HelloTrigneleApplication {
         uint32_t extensionCount = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
         std::vector<VkExtensionProperties> extensions(extensionCount);
-        std::cout << extensionCount << std::endl;
         // Returns up to requested number of global extension properties
         // extensionCount : pPropertyCount is a pointer to an integer related to the number of extension properties available or queried,
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-        std::cout << "available extensions:\n";
+        std::cout << "available extensions: " << extensionCount << std::endl;
         for (const auto& extension : extensions) {
             std::cout << '\t' << extension.extensionName << '\n';
         }
@@ -159,6 +161,60 @@ class HelloTrigneleApplication {
             }
         }
         return true;
+    }
+    bool pickPhysicalDevice() {
+        uint32_t deviceCount = 0;
+        // Enumerates the physical devices accessible to a Vulkan instance
+        vkEnumeratePhysicalDevices(this->instance, &deviceCount, nullptr);
+        std::cout << "available device number: " << deviceCount << std::endl;
+        if (deviceCount == 0) {
+            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        }
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
+
+        for (auto& device : devices) {
+            if (this->isDeviceSuitable(device)) {
+                this->physicalDevice = device;
+                break;
+            }
+        }
+        if (this->physicalDevice == VK_NULL_HANDLE) {
+            throw std::runtime_error("failed to find a suitable GPU!");
+        }
+        return true;
+    }
+    bool isDeviceSuitable(VkPhysicalDevice device) {
+        // VkPhysicalDeviceProperties deviceProperties;
+        // VkPhysicalDeviceFeatures deviceFeatures;
+        // vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        // vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+        // std::cout << deviceProperties.deviceName << std::endl;
+        // return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU &&
+        //        deviceFeatures.geometryShader;
+        QueueFamilyIndices indices = findQueueFamilies(device);
+        return indices.graphicsFamily.has_value();
+       
+    }
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+        QueueFamilyIndices indices;
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+        int i = 0;
+        for (auto& queueFamily : queueFamilies) {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                indices.graphicsFamily = i;
+            }
+            if (indices.graphicsFamily.has_value()){
+                break;
+            }
+            i++;
+        }
+
+        return indices;
     }
 };
 
