@@ -12,6 +12,8 @@
 #include <vulkan/vulkan.h>
 
 // The cstdlib header provides the EXIT_SUCCESS and EXIT_FAILURE macros.
+#include <string.h>
+
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -29,6 +31,14 @@ class HelloTrigneleApplication {
     GLFWwindow* window;
     const uint32_t win_width = 800;
     const uint32_t win_height = 800;
+    const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+// #define NDEBUG
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool enableValidationLayers = true;
+#endif
+
     // There is no global state in Vulkan and all per-application state is stored in a VkInstance object.
     // Creating a VkInstance object initializes the Vulkan library and
     // allows the application to pass information about itself to the implementation.
@@ -65,6 +75,9 @@ class HelloTrigneleApplication {
     }
 
     void createInstance() {
+        if (this->enableValidationLayers && !this->checkValidationLayerSupport()) {
+            throw std::runtime_error("validation layers requested,but not available");
+        }
         //initialize the Vulkan library by creating an instance
         VkApplicationInfo appInfo{};
         //many structs in Vulkan require you to explicitly specify the type in the sType member.
@@ -102,8 +115,17 @@ class HelloTrigneleApplication {
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);  //glfw api
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
-        createInfo.enabledLayerCount = 0;
+        if (this->enableValidationLayers) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = this->validationLayers.data();
+            std::cerr << this->validationLayers[0] << std::endl;
+
+        } else {
+            createInfo.enabledLayerCount = 0;
+        }
         VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
+        std::cerr << validationLayers.size() << std::endl;
+
         if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance");
         }
@@ -118,6 +140,25 @@ class HelloTrigneleApplication {
         for (const auto& extension : extensions) {
             std::cout << '\t' << extension.extensionName << '\n';
         }
+    }
+    bool checkValidationLayerSupport() {
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+        for (const char* layerName : validationLayers) {
+            bool layerFound = false;
+            for (const auto& layerProperties : availableLayers) {
+                if (strcmp(layerName, layerProperties.layerName) == 0) {
+                    layerFound = true;
+                    break;
+                }
+            }
+            if (!layerFound) {
+                return false;
+            }
+        }
+        return true;
     }
 };
 
