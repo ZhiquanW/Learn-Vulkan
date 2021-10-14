@@ -13,11 +13,13 @@
 // The cstdlib header provides the EXIT_SUCCESS and EXIT_FAILURE macros.
 #include <string.h>
 
+#include <algorithm>  // Necessary for std::min/std::max
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <set>
 #include <vector>
+
 // #define NDEBUG
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -32,6 +34,13 @@ struct QueueFamilyIndices {
         return this->graphicsQueueFamily.has_value() && this->presentQueueFamily.has_value();
     }
 };
+
+struct SwapChainSupportDetials {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
+
 class HelloTrigneleApplication {
    public:
     void run() {
@@ -42,10 +51,9 @@ class HelloTrigneleApplication {
     }
 
    private:
-    GLFWwindow* window;
+    GLFWwindow *window;
     const uint32_t win_width = 800;
     const uint32_t win_height = 800;
-    const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
     // There is no global state in Vulkan and all per-application state is stored in a VkInstance object.
     // Creating a VkInstance object initializes the Vulkan library and
@@ -55,8 +63,16 @@ class HelloTrigneleApplication {
     VkDevice device;
     VkQueue graphicsQueue;
     VkQueue presentQueue;
-    VkSurfaceKHR surface;
-    void initWindow() {
+    VkSurfaceKHR surface;  // represents an abstract type of surface to present rendered images to
+    VkSwapchainKHR swapChain;
+    std::vector<VkImage> swapChainImages;
+    VkFormat swapChainImageFormat;
+    VkExtent2D swapChainExtent;
+    const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+    const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+    void
+    initWindow() {
         // initializes the GLFW library
         glfwInit();
         /*
@@ -71,11 +87,12 @@ class HelloTrigneleApplication {
     }
     void initVulkan() {
         this->createInstance();
-        //The window surface needs to be created right after the instance creation, 
+        //The window surface needs to be created right after the instance creation,
         // because it can actually influence the physical device selection.
         this->createSurface();
         this->pickPhysicalDevice();
         this->createLogicalDevice();
+        this->createSwapChain();
     }
 
     void mainLoop() {
@@ -87,7 +104,8 @@ class HelloTrigneleApplication {
     }
 
     void cleanup() {
-        vkDestroyDevice(device, nullptr);
+        vkDestroySwapchainKHR(this->device, swapChain, nullptr);
+        vkDestroyDevice(this->device, nullptr);
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(this->instance, nullptr);
         glfwDestroyWindow(this->window);
@@ -125,7 +143,7 @@ class HelloTrigneleApplication {
         */
         createInfo.pApplicationInfo = &appInfo;
         uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
+        const char **glfwExtensions;
         /*
         This function returns an array of names of Vulkan instance extensions required by GLFW 
         for creating Vulkan surfaces for GLFW windows.
@@ -153,7 +171,7 @@ class HelloTrigneleApplication {
         // extensionCount : pPropertyCount is a pointer to an integer related to the number of extension properties available or queried,
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
         std::cout << "available extensions: " << extensionCount << std::endl;
-        for (const auto& extension : extensions) {
+        for (const auto &extension : extensions) {
             std::cout << '\t' << extension.extensionName << '\n';
         }
     }
@@ -162,17 +180,17 @@ class HelloTrigneleApplication {
         uint32_t deviceCount = 0;
         // Enumerates the physical devices accessible to a Vulkan instance
         vkEnumeratePhysicalDevices(this->instance, &deviceCount, nullptr);
-        std::cout << "available device number: " << deviceCount << std::endl;
+        // std::cout << "available device number: " << deviceCount << std::endl;
         if (deviceCount == 0) {
             throw std::runtime_error("failed to find GPUs with Vulkan support!");
         }
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
 
-        for (auto& device : devices) {
+        for (auto &device : devices) {
             if (this->isDeviceSuitable(device)) {
                 this->physicalDevice = device;
-                break;
+                // break;
             }
         }
         if (this->physicalDevice == VK_NULL_HANDLE) {
@@ -186,9 +204,9 @@ class HelloTrigneleApplication {
         vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
         std::vector<VkLayerProperties> availableLayers(layerCount);
         vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-        for (const char* layerName : validationLayers) {
+        for (const char *layerName : validationLayers) {
             bool layerFound = false;
-            for (const auto& layerProperties : availableLayers) {
+            for (const auto &layerProperties : availableLayers) {
                 if (strcmp(layerName, layerProperties.layerName) == 0) {
                     layerFound = true;
                     break;
@@ -205,11 +223,18 @@ class HelloTrigneleApplication {
         // VkPhysicalDeviceFeatures deviceFeatures;
         // vkGetPhysicalDeviceProperties(device, &deviceProperties);
         // vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-        // std::cout << deviceProperties.deviceName << std::endl;
+        // std::cerr << deviceProperties.deviceName << std::endl;
         // return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU &&
         //        deviceFeatures.geometryShader;
         QueueFamilyIndices indices = findQueueFamilies(device);
-        return indices.isComplete();
+        bool extensionsSupported = checkDeviceExtensionSupport(device);
+        bool swapChainAdequate = false;
+        // It is important that we only try to query for swap chain support after verifying that the extension is available
+        if (extensionsSupported) {
+            SwapChainSupportDetials swapChainSupport = this->querySwapChainSupport(device);
+            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+        }
+        return indices.isComplete() && extensionsSupported && swapChainAdequate;
     }
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
@@ -219,7 +244,7 @@ class HelloTrigneleApplication {
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
         int i = 0;
-        for (auto& queueFamily : queueFamilies) {
+        for (auto &queueFamily : queueFamilies) {
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsQueueFamily = i;
             }
@@ -238,7 +263,6 @@ class HelloTrigneleApplication {
     }
 
     void createLogicalDevice() {
-        
         // Specifying the queues to be created
         QueueFamilyIndices indices = this->findQueueFamilies(this->physicalDevice);
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -256,8 +280,10 @@ class HelloTrigneleApplication {
         // Specifying used device features
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.queueCreateInfoCount = 1;
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
         VkPhysicalDeviceFeatures deviceFeatures{};
         createInfo.pEnabledFeatures = &deviceFeatures;
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &this->device) != VK_SUCCESS) {
@@ -271,13 +297,127 @@ class HelloTrigneleApplication {
             throw std::runtime_error("failed to create window surface!");
         }
     }
+
+    void createSwapChain() {
+        SwapChainSupportDetials swapChainSupport = this->querySwapChainSupport(this->physicalDevice);
+        VkSurfaceFormatKHR surfaceFormat = this->chooseSwapSurfaceFormat(swapChainSupport.formats);
+        VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+        //0 is a special value that means that there is no maximum:
+        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+            imageCount = swapChainSupport.capabilities.maxImageCount;
+        }
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = surface;
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        //The imageArrayLayers specifies the amount of layers each image consists of.
+        // This is always 1 unless you are developing a stereoscopic 3D application.
+        createInfo.imageArrayLayers = 1;
+        //. The imageUsage bit field specifies what kind of operations we'll use the images in the swap chain for.
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        uint32_t QueueFamilyIndices[] = {indices.graphicsQueueFamily.value(), indices.presentQueueFamily.value()};
+        if (indices.graphicsQueueFamily != indices.presentQueueFamily) {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = QueueFamilyIndices;
+        } else {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createInfo.queueFamilyIndexCount = 0;      // optional
+            createInfo.pQueueFamilyIndices = nullptr;  // optional
+        }
+
+        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = presentMode;
+        // If the clipped member is set to VK_TRUE then that means that we don't care about the color of pixels that are obscured,
+        // for example because another window is in front of them.
+        // Unless you really need to be able to read these pixels back and get predictable results, you'll get the best performance by enabling clipping.
+        createInfo.clipped = VK_TRUE;
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &this->swapChain) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create swap chain!");
+        }
+        vkGetSwapchainImagesKHR(this->device, this->swapChain, &imageCount, nullptr);
+        swapChainImages.resize(imageCount);
+        vkGetSwapchainImagesKHR(this->device, this->swapChain, &imageCount, swapChainImages.data());
+        this->swapChainImageFormat = surfaceFormat.format;
+        this->swapChainExtent = extent;
+    }
+    bool checkDeviceExtensionSupport(VkPhysicalDevice pdevice) {
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(pdevice, nullptr, &extensionCount, nullptr);
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(pdevice, nullptr, &extensionCount, availableExtensions.data());
+        std::set<std::string> requiredExtensions(this->deviceExtensions.begin(), this->deviceExtensions.end());
+        for (const auto &extension : availableExtensions) {
+            requiredExtensions.erase(extension.extensionName);
+        }
+        return requiredExtensions.empty();
+    }
+
+    SwapChainSupportDetials querySwapChainSupport(VkPhysicalDevice pdevice) {
+        SwapChainSupportDetials details;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pdevice, this->surface, &details.capabilities);
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(pdevice, surface, &formatCount, nullptr);
+        if (formatCount != 0) {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(pdevice, surface, &formatCount, details.formats.data());
+        }
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(pdevice, surface, &presentModeCount, nullptr);
+        if (presentModeCount != 0) {
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(pdevice, surface, &presentModeCount, details.presentModes.data());
+        }
+        return details;
+    }
+
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
+        for (const auto &availableFormat : availableFormats) {
+            if (availableFormat.format == VK_FORMAT_B8G8R8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                return availableFormat;
+            }
+        }
+        return availableFormats[0];
+    }
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes) {
+        for (const auto &availablePresenMode : availablePresentModes) {
+            if (availablePresenMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+                return availablePresenMode;
+            }
+        }
+        return VK_PRESENT_MODE_FIFO_KHR;
+    }
+
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
+        if (capabilities.currentExtent.width != UINT32_MAX) {
+            return capabilities.currentExtent;
+        } else {
+            int width, height;
+            glfwGetFramebufferSize(this->window, &width, &height);
+            VkExtent2D actualExtent = {
+                static_cast<uint32_t>(width),
+                static_cast<uint32_t>(height)};
+            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+            return actualExtent;
+        }
+    }
 };
 
 int main() {
     HelloTrigneleApplication app;
     try {
         app.run();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
