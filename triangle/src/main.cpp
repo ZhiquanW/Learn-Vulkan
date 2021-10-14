@@ -47,6 +47,8 @@ class HelloTrigneleApplication {
     // allows the application to pass information about itself to the implementation.
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device;
+    VkQueue graphicsQueue;
     void initWindow() {
         // initializes the GLFW library
         glfwInit();
@@ -63,6 +65,7 @@ class HelloTrigneleApplication {
     void initVulkan() {
         this->createInstance();
         this->pickPhysicalDevice();
+        this->createLogicalDevice();
     }
 
     void mainLoop() {
@@ -74,6 +77,7 @@ class HelloTrigneleApplication {
     }
 
     void cleanup() {
+        vkDestroyDevice(device, nullptr);
         vkDestroyInstance(this->instance, nullptr);
         glfwDestroyWindow(this->window);
         glfwTerminate();
@@ -143,25 +147,7 @@ class HelloTrigneleApplication {
             std::cout << '\t' << extension.extensionName << '\n';
         }
     }
-    bool checkValidationLayerSupport() {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-        std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-        for (const char* layerName : validationLayers) {
-            bool layerFound = false;
-            for (const auto& layerProperties : availableLayers) {
-                if (strcmp(layerName, layerProperties.layerName) == 0) {
-                    layerFound = true;
-                    break;
-                }
-            }
-            if (!layerFound) {
-                return false;
-            }
-        }
-        return true;
-    }
+
     bool pickPhysicalDevice() {
         uint32_t deviceCount = 0;
         // Enumerates the physical devices accessible to a Vulkan instance
@@ -184,6 +170,26 @@ class HelloTrigneleApplication {
         }
         return true;
     }
+
+    bool checkValidationLayerSupport() {
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+        for (const char* layerName : validationLayers) {
+            bool layerFound = false;
+            for (const auto& layerProperties : availableLayers) {
+                if (strcmp(layerName, layerProperties.layerName) == 0) {
+                    layerFound = true;
+                    break;
+                }
+            }
+            if (!layerFound) {
+                return false;
+            }
+        }
+        return true;
+    }
     bool isDeviceSuitable(VkPhysicalDevice device) {
         // VkPhysicalDeviceProperties deviceProperties;
         // VkPhysicalDeviceFeatures deviceFeatures;
@@ -194,7 +200,6 @@ class HelloTrigneleApplication {
         //        deviceFeatures.geometryShader;
         QueueFamilyIndices indices = findQueueFamilies(device);
         return indices.graphicsFamily.has_value();
-       
     }
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
@@ -208,13 +213,36 @@ class HelloTrigneleApplication {
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsFamily = i;
             }
-            if (indices.graphicsFamily.has_value()){
+            if (indices.graphicsFamily.has_value()) {
                 break;
             }
             i++;
         }
 
         return indices;
+    }
+
+    void createLogicalDevice() {
+        // Specifying the queues to be created
+        QueueFamilyIndices indices = this->findQueueFamilies(this->physicalDevice);
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        queueCreateInfo.queueCount = 1;
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        // Specifying used device features
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+        VkPhysicalDeviceFeatures deviceFeatures{};
+        createInfo.pEnabledFeatures = &deviceFeatures;
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &this->device) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create logical device!");
+        }
+        vkGetDeviceQueue(device,indices.graphicsFamily.value(),0,&graphicsQueue);
     }
 };
 
