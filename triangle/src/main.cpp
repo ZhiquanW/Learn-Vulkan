@@ -6,20 +6,31 @@
 //@ laboratory = 'vrlab-purdue'
 //@ date = '2020/05/01-9:09 PM'
 // Copyright (c) 2020 Zhiquan Wang. All rights reserved.
-
 //That way GLFW will include its own definitions and automatically load the Vulkan header with it.
+#define GLFW_INCLUDE_VULKAN  // this define is necessary for glfwCreateWindowSurface
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
-
 // The cstdlib header provides the EXIT_SUCCESS and EXIT_FAILURE macros.
 #include <string.h>
 
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <vector>
+// #define NDEBUG
+#ifdef NDEBUG
+const bool enableValidationLayers = false;
+#else
+const bool enableValidationLayers = true;
+#endif
+
 struct QueueFamilyIndices {
-    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> graphicsQueueFamily;
+    std::optional<uint32_t> presentQueueFamily;
+    bool isComplete() {
+        return this->graphicsQueueFamily.has_value() && this->presentQueueFamily.has_value();
+    }
 };
 class HelloTrigneleApplication {
    public:
@@ -35,12 +46,6 @@ class HelloTrigneleApplication {
     const uint32_t win_width = 800;
     const uint32_t win_height = 800;
     const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-// #define NDEBUG
-#ifdef NDEBUG
-    const bool enableValidationLayers = false;
-#else
-    const bool enableValidationLayers = true;
-#endif
 
     // There is no global state in Vulkan and all per-application state is stored in a VkInstance object.
     // Creating a VkInstance object initializes the Vulkan library and
@@ -49,6 +54,8 @@ class HelloTrigneleApplication {
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
     VkQueue graphicsQueue;
+    VkQueue presentQueue;
+    VkSurfaceKHR surface;
     void initWindow() {
         // initializes the GLFW library
         glfwInit();
@@ -64,6 +71,7 @@ class HelloTrigneleApplication {
     }
     void initVulkan() {
         this->createInstance();
+        this->createSurface();
         this->pickPhysicalDevice();
         this->createLogicalDevice();
     }
@@ -78,13 +86,14 @@ class HelloTrigneleApplication {
 
     void cleanup() {
         vkDestroyDevice(device, nullptr);
+        vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(this->instance, nullptr);
         glfwDestroyWindow(this->window);
         glfwTerminate();
     }
 
     void createInstance() {
-        if (this->enableValidationLayers && !this->checkValidationLayerSupport()) {
+        if (enableValidationLayers && !this->checkValidationLayerSupport()) {
             throw std::runtime_error("validation layers requested,but not available");
         }
         //initialize the Vulkan library by creating an instance
@@ -124,7 +133,7 @@ class HelloTrigneleApplication {
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);  //glfw api
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
-        if (this->enableValidationLayers) {
+        if (enableValidationLayers) {
             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
             createInfo.ppEnabledLayerNames = this->validationLayers.data();
         } else {
@@ -199,7 +208,7 @@ class HelloTrigneleApplication {
         // return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU &&
         //        deviceFeatures.geometryShader;
         QueueFamilyIndices indices = findQueueFamilies(device);
-        return indices.graphicsFamily.has_value();
+        return indices.isComplete();
     }
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
@@ -211,9 +220,14 @@ class HelloTrigneleApplication {
         int i = 0;
         for (auto& queueFamily : queueFamilies) {
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                indices.graphicsFamily = i;
+                indices.graphicsQueueFamily = i;
             }
-            if (indices.graphicsFamily.has_value()) {
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->surface, &presentSupport);
+            if (presentSupport) {
+                indices.presentQueueFamily = i;
+            }
+            if (indices.isComplete()) {
                 break;
             }
             i++;
@@ -223,26 +237,38 @@ class HelloTrigneleApplication {
     }
 
     void createLogicalDevice() {
+        
         // Specifying the queues to be created
         QueueFamilyIndices indices = this->findQueueFamilies(this->physicalDevice);
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        queueCreateInfo.queueCount = 1;
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsQueueFamily.value(), indices.presentQueueFamily.value()};
         float queuePriority = 1.0f;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
 
         // Specifying used device features
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.queueCreateInfoCount = 1;
         VkPhysicalDeviceFeatures deviceFeatures{};
         createInfo.pEnabledFeatures = &deviceFeatures;
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &this->device) != VK_SUCCESS) {
             throw std::runtime_error("failed to create logical device!");
         }
-        vkGetDeviceQueue(device,indices.graphicsFamily.value(),0,&graphicsQueue);
+        vkGetDeviceQueue(device, indices.graphicsQueueFamily.value(), 0, &this->graphicsQueue);
+        vkGetDeviceQueue(device, indices.presentQueueFamily.value(), 0, &this->presentQueue);
+    }
+    void createSurface() {
+        if (glfwCreateWindowSurface(this->instance, this->window, nullptr, &surface) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create window surface!");
+        }
     }
 };
 
