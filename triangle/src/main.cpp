@@ -70,6 +70,7 @@ class HelloTrigneleApplication {
     VkExtent2D swapChainExtent;
     const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
     const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    std::vector<VkImageView> swapChainImageViews;
 
     void
     initWindow() {
@@ -93,6 +94,7 @@ class HelloTrigneleApplication {
         this->pickPhysicalDevice();
         this->createLogicalDevice();
         this->createSwapChain();
+        this->createImageViews();
     }
 
     void mainLoop() {
@@ -104,6 +106,9 @@ class HelloTrigneleApplication {
     }
 
     void cleanup() {
+        for (auto imageView : swapChainImageViews) {
+            vkDestroyImageView(this->device, imageView, nullptr);
+        }
         vkDestroySwapchainKHR(this->device, swapChain, nullptr);
         vkDestroyDevice(this->device, nullptr);
         vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -292,6 +297,7 @@ class HelloTrigneleApplication {
         vkGetDeviceQueue(device, indices.graphicsQueueFamily.value(), 0, &this->graphicsQueue);
         vkGetDeviceQueue(device, indices.presentQueueFamily.value(), 0, &this->presentQueue);
     }
+
     void createSurface() {
         if (glfwCreateWindowSurface(this->instance, this->window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("failed to create window surface!");
@@ -349,6 +355,29 @@ class HelloTrigneleApplication {
         vkGetSwapchainImagesKHR(this->device, this->swapChain, &imageCount, swapChainImages.data());
         this->swapChainImageFormat = surfaceFormat.format;
         this->swapChainExtent = extent;
+    }
+
+    void createImageViews() {
+        this->swapChainImageViews.resize(swapChainImages.size());
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = swapChainImages[i];
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = swapChainImageFormat;
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+            if (vkCreateImageView(this->device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create image views!");
+            }
+        }
     }
     bool checkDeviceExtensionSupport(VkPhysicalDevice pdevice) {
         uint32_t extensionCount;
