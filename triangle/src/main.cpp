@@ -71,6 +71,8 @@ class HelloTrigneleApplication {
     }
     void initVulkan() {
         this->createInstance();
+        //The window surface needs to be created right after the instance creation, 
+        // because it can actually influence the physical device selection.
         this->createSurface();
         this->pickPhysicalDevice();
         this->createLogicalDevice();
@@ -134,13 +136,12 @@ class HelloTrigneleApplication {
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
         if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.enabledLayerCount = static_cast<uint32_t>(this->validationLayers.size());
             createInfo.ppEnabledLayerNames = this->validationLayers.data();
         } else {
             createInfo.enabledLayerCount = 0;
         }
         VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
-        std::cerr << validationLayers.size() << std::endl;
 
         if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance");
