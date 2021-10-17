@@ -15,11 +15,11 @@
 
 #include <algorithm>  // Necessary for std::min/std::max
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <set>
 #include <vector>
-
 // #define NDEBUG
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -95,6 +95,7 @@ class HelloTrigneleApplication {
         this->createLogicalDevice();
         this->createSwapChain();
         this->createImageViews();
+        this->createGraphicsPipeline();
     }
 
     void mainLoop() {
@@ -379,6 +380,15 @@ class HelloTrigneleApplication {
             }
         }
     }
+
+    void createGraphicsPipeline() {
+        auto vertShaderCode = readFile("shaders/vert.spv");
+        auto fragShaderCode = readFile("shaders/frag.spv");
+    }
+    
+    VkShaderModule createShaderModule(const std::vector<char> & code){
+        
+    }
     bool checkDeviceExtensionSupport(VkPhysicalDevice pdevice) {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(pdevice, nullptr, &extensionCount, nullptr);
@@ -439,6 +449,21 @@ class HelloTrigneleApplication {
             actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
             return actualExtent;
         }
+    }
+
+    static std::vector<char> readFile(const std::string &filename) {
+        // ate: Start reading at the end of the file
+        //binary: Read the file as binary file (avoid text transformations)
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+        size_t fileSize = (size_t)file.tellg();
+        std::vector<char> buffer(fileSize);
+        file.seekg(0);
+        file.read(buffer.data(), fileSize);
+        file.close();
+        return buffer;
     }
 };
 
