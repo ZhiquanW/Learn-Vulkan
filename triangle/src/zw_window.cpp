@@ -13,4 +13,12 @@ void ZWWindow::initWindow() {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     this->window = glfwCreateWindow(this->width, this->height, this->windowName.c_str(), nullptr, nullptr);
 }
+
+void ZWWindow::createWindowSurface(VkInstance instance,VkSurfaceKHR * surface){
+    if(glfwCreateWindowSurface(instance,window,nullptr,surface) != VK_SUCCESS){
+         throw std::runtime_error("failed to create window surface");
+    }
+
+}
+
 }  // namespace zw

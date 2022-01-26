@@ -1,7 +1,9 @@
 #pragma once
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
 #include <string>
+#include <stdexcept>
+
 namespace zw {
 class ZWWindow {
    private:
@@ -20,6 +22,7 @@ class ZWWindow {
     bool shouldClose() {
         return glfwWindowShouldClose(this->window);
     }
+    void createWindowSurface(VkInstance instance,VkSurfaceKHR * surface);
 };
 
 }  // namespace zw
