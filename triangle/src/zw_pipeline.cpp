@@ -209,4 +209,8 @@ PipelineConfigInfo ZWPipeline::defaultPipelineConfigInfo(
 
     return configInfo;
 }
+void ZWPipeline::bind(VkCommandBuffer cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      this->graphicsPipeline);
+}
 }  // namespace zw
