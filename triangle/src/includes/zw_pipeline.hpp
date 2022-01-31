@@ -21,14 +21,14 @@ struct PipelineConfigInfo {
     VkRenderPass renderPass = nullptr;
     uint32_t subpass = 0;
 };
-class ZWPipeline {
+class ZwPipeline {
    public:
-    ZWPipeline(ZWDevice& device, const std::string& vertFilepath,
+    ZwPipeline(ZwDevice& device, const std::string& vertFilepath,
                const std::string& fragFilepath,
                const PipelineConfigInfo& configInfo);
-    ~ZWPipeline();
-    ZWPipeline(const ZWPipeline&) = delete;
-    void operator=(const ZWPipeline&) = delete;
+    ~ZwPipeline();
+    ZwPipeline(const ZwPipeline&) = delete;
+    void operator=(const ZwPipeline&) = delete;
     static PipelineConfigInfo defaultPipelineConfigInfo(
         uint32_t width, uint32_t height);
     void bind(VkCommandBuffer);
@@ -40,7 +40,7 @@ class ZWPipeline {
                                 const PipelineConfigInfo& configInfo);
     void createShaderModule(const std::vector<char>& code,
                             VkShaderModule* shaderModule);
-    ZWDevice& zwDevice;
+    ZwDevice& zwDevice;
     VkPipeline graphicsPipeline;
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;

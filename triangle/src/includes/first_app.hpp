@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "zw_model.hpp"
 #include "zw_pipeline.hpp"
 #include "zw_swap_chain.hpp"
 #include "zw_window.hpp"
@@ -19,20 +20,22 @@ class FirstApp {
     void run();
 
    private:
+    void loadModels();
     void createPipelineLayout();
     void createPipeline();
     void createCommandBuffers();
     void drawFrame();
-    ZWWindow zwWindow{this->WIDTH, this->HEIGHT, "HELLO VULKAN"};
-    ZWDevice zwDevice{zwWindow};
-    ZWSwapChain zwSwapChain{this->zwDevice, this->zwWindow.getExtent()};
-    std::unique_ptr<ZWPipeline> zwPipeline;
+    ZwWindow zwWindow{this->WIDTH, this->HEIGHT, "HELLO VULKAN"};
+    ZwDevice zwDevice{zwWindow};
+    ZwSwapChain zwSwapChain{this->zwDevice, this->zwWindow.getExtent()};
+    std::unique_ptr<ZwPipeline> zwPipeline;
     VkPipelineLayout zwPipelineLayout;
     std::vector<VkCommandBuffer> commandBuffers;
-    // ZWPipeline zwPipeline{this->zwDevice,
+    std::unique_ptr<ZwModel> zwModel;
+    // ZwPipeline zwPipeline{this->zwDevice,
     //                       "../src/shaders/simple_vert.vert.spv",
     //                       "../src/shaders/simple_frag.frag.spv",
-    //                       ZWPipeline::defaultPipelineConfigInfo(
+    //                       ZwPipeline::defaultPipelineConfigInfo(
     //                           this->WIDTH, this->HEIGHT)};
 };
 }  // namespace zw

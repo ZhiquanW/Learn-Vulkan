@@ -3,8 +3,10 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
+
+#include "zw_model.hpp"
 namespace zw {
-ZWPipeline::ZWPipeline(ZWDevice& device,
+ZwPipeline::ZwPipeline(ZwDevice& device,
                        const std::string& vertFilepath,
                        const std::string& fragFilepath,
                        const PipelineConfigInfo& configInfo)
@@ -13,7 +15,7 @@ ZWPipeline::ZWPipeline(ZWDevice& device,
                                  configInfo);
 }
 
-ZWPipeline::~ZWPipeline() {
+ZwPipeline::~ZwPipeline() {
     vkDestroyShaderModule(this->zwDevice.device(),
                           this->vertShaderModule, nullptr);
     vkDestroyShaderModule(this->zwDevice.device(),
@@ -21,7 +23,7 @@ ZWPipeline::~ZWPipeline() {
     vkDestroyPipeline(this->zwDevice.device(), this->graphicsPipeline,
                       nullptr);
 }
-std::vector<char> ZWPipeline::readFile(const std::string& filename) {
+std::vector<char> ZwPipeline::readFile(const std::string& filename) {
     std::ifstream file{filename, std::ios::ate | std::ios::binary};
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file: " + filename);
@@ -34,7 +36,7 @@ std::vector<char> ZWPipeline::readFile(const std::string& filename) {
     return buffer;
 }
 
-void ZWPipeline::createGraphicsPipeline(
+void ZwPipeline::createGraphicsPipeline(
     const std::string& vertFilepath, const std::string& fragFilepath,
     const PipelineConfigInfo& configInfo) {
     assert(configInfo.pipelineLayout != nullptr &&
@@ -66,13 +68,15 @@ void ZWPipeline::createGraphicsPipeline(
     shaderStages[1].pNext = nullptr;
     shaderStages[1].pSpecializationInfo = nullptr;
 
+    auto bindingDescriptions = ZwModel::Vertex::getBindingDescriptions();
+    auto attributeDescriptions = ZwModel::Vertex::getAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType =
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
 
     VkPipelineViewportStateCreateInfo viewportInfo{};
     viewportInfo.sType =
@@ -109,7 +113,7 @@ void ZWPipeline::createGraphicsPipeline(
         throw std::runtime_error("failed to create graphics pipeline");
     }
 }
-void ZWPipeline::createShaderModule(const std::vector<char>& code,
+void ZwPipeline::createShaderModule(const std::vector<char>& code,
                                     VkShaderModule* shaderModule) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -121,7 +125,7 @@ void ZWPipeline::createShaderModule(const std::vector<char>& code,
     }
 }
 
-PipelineConfigInfo ZWPipeline::defaultPipelineConfigInfo(
+PipelineConfigInfo ZwPipeline::defaultPipelineConfigInfo(
     uint32_t width, uint32_t height) {
     PipelineConfigInfo configInfo{};
     configInfo.inputAssemblyInfo.sType =
@@ -209,7 +213,7 @@ PipelineConfigInfo ZWPipeline::defaultPipelineConfigInfo(
 
     return configInfo;
 }
-void ZWPipeline::bind(VkCommandBuffer cmdBuffer) {
+void ZwPipeline::bind(VkCommandBuffer cmdBuffer) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       this->graphicsPipeline);
 }

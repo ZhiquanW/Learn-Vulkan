@@ -6,7 +6,7 @@
 #include <string>
 
 namespace zw {
-class ZWWindow {
+class ZwWindow {
    private:
     GLFWwindow *window;
     const int width;
@@ -16,10 +16,10 @@ class ZWWindow {
     void initWindow();
 
    public:
-    ZWWindow(int w, int h, std::string name);
-    ZWWindow(const ZWWindow &) = delete;
-    ZWWindow &operator=(const ZWWindow &) = delete;
-    ~ZWWindow();
+    ZwWindow(int w, int h, std::string name);
+    ZwWindow(const ZwWindow &) = delete;
+    ZwWindow &operator=(const ZwWindow &) = delete;
+    ~ZwWindow();
     bool shouldClose() { return glfwWindowShouldClose(this->window); }
     void createWindowSurface(VkInstance instance,
                              VkSurfaceKHR *surface);

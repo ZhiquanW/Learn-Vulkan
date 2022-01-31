@@ -17,7 +17,15 @@ void FirstApp::run() {
         glfwPollEvents();
         this->drawFrame();
     }
-    vkDeviceWaitIdle(this->zwDevice);
+    vkDeviceWaitIdle(this->zwDevice.device());
+}
+void FirstApp::loadModels() {
+    std::vector<ZwModel::Vertex> vertices{
+        {{0.0f, -0.5f}},
+        {{0.5f, 0.5f}},
+        {{-0.5f, 0.5f}},
+    };
+    this->zwModel = std::make_unique<ZwModel>(this->zwDevice, vertices);
 }
 void FirstApp::createPipelineLayout() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -35,11 +43,11 @@ void FirstApp::createPipelineLayout() {
 }
 
 void FirstApp::createPipeline() {
-    auto pipelineConfig = ZWPipeline::defaultPipelineConfigInfo(
+    auto pipelineConfig = ZwPipeline::defaultPipelineConfigInfo(
         this->zwSwapChain.width(), this->zwSwapChain.height());
     pipelineConfig.renderPass = this->zwSwapChain.getRenderPass();
     pipelineConfig.pipelineLayout = this->zwPipelineLayout;
-    this->zwPipeline = std::make_unique<ZWPipeline>(
+    this->zwPipeline = std::make_unique<ZwPipeline>(
         this->zwDevice, "../src/shaders/simple_vert.vert.spv",
         "../src/shaders/simple_frag.frag.spv", pipelineConfig);
 }
@@ -82,9 +90,11 @@ void FirstApp::createCommandBuffers() {
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo,
                              VK_SUBPASS_CONTENTS_INLINE);
         this->zwPipeline->bind(commandBuffers[i]);
-        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0); 
+        this->zwModel->bind(commandBuffers[i]);
+        this->zwModel->draw(commandBuffers[i]);
+        // vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
         vkCmdEndRenderPass(commandBuffers[i]);
-        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS){
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
     }
@@ -92,11 +102,11 @@ void FirstApp::createCommandBuffers() {
 void FirstApp::drawFrame() {
     uint32_t nextImageIdx;
     auto result = this->zwSwapChain.acquireNextImage(&nextImageIdx);
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR){
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("failed to acquire swap chain image");
     }
-    result = this->zwSwapChain.submitCommandBuffers(&this->commandBuffers[nextImageIdx],&nextImageIdx);
-    if (result != VK_SUCCESS){
+    result = this->zwSwapChain.submitCommandBuffers(&this->commandBuffers[nextImageIdx], &nextImageIdx);
+    if (result != VK_SUCCESS) {
         throw std::runtime_error("failed to present swap chain image");
     }
 }
